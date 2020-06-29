@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	gosocketio "github.com/mtfelian/golang-socketio"
-	rvo "github.com/RuiHirano/rvo2-go/src/rvosimulator"
+	rvo "github.com/nagata-yoshiteru/rvo2-go/src/rvosimulator"
 )
 
 var (
