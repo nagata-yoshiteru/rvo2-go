@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"math/rand"
-	rvo "github.com/RuiHirano/rvo2-go/src/rvosimulator"
-	monitor "github.com/RuiHirano/rvo2-go/monitor"
+	rvo "github.com/nagata-yoshiteru/rvo2-go/src/rvosimulator"
+	monitor "github.com/nagata-yoshiteru/rvo2-go/monitor"
 )
 
 
