@@ -130,7 +130,7 @@ func setupScenario(sim *rvo.RVOSimulator) {
 func showStatus(sim *rvo.RVOSimulator, step int){
 	var agentPositions string
 		agentPositions = ""
-		for j := 0; j < sim.GetNumAgents(); j++ {
+		for j := range sim.GetAgents() {
 			agentPositions = agentPositions + " (" + strconv.FormatFloat(sim.GetAgentPosition(j).X, 'f', 3, 64) + "," + strconv.FormatFloat(sim.GetAgentPosition(j).Y, 'f', 4, 64) + ") "
 		}
 		fmt.Printf("step=%v  t=%v  %v \n", step+1, strconv.FormatFloat(sim.GlobalTime, 'f', 3, 64), agentPositions)

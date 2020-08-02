@@ -10,7 +10,7 @@ func init() {
 // RVOSimulator :
 type RVOSimulator struct {
 	TimeStep         float64
-	Agents           []*Agent
+	Agents           map[int]*Agent
 	Obstacles        [][]*Vector2
 	ObstacleVertices []*Obstacle
 	KdTree           *KdTree
@@ -34,7 +34,7 @@ func NewRVOSimulator(timeStep float64, neighborDist float64, maxNeighbors int, t
 
 	sim := &RVOSimulator{
 		TimeStep:         timeStep,
-		Agents:           make([]*Agent, 0),
+		Agents:           make(map[int]*Agent),
 		Obstacles:        make([][]*Vector2, 0),
 		ObstacleVertices: make([]*Obstacle, 0),
 		KdTree:           kdTree,
@@ -54,7 +54,7 @@ func NewEmptyRVOSimulator() *RVOSimulator {
 
 	sim := &RVOSimulator{
 		TimeStep:         0,
-		Agents:           make([]*Agent, 0),
+		Agents:           make(map[int]*Agent),
 		Obstacles:        make([][]*Vector2, 0),
 		ObstacleVertices: make([]*Obstacle, 0),
 		KdTree:           kdTree,
@@ -95,7 +95,7 @@ func (rvo *RVOSimulator) AddDefaultAgent(position *Vector2) (int, bool) {
 	agent.Velocity = rvo.DefaultAgent.Velocity
 	agent.ID = rvo.NextAgentID
 
-	rvo.Agents = append(rvo.Agents, agent)
+	(rvo.Agents)[rvo.NextAgentID] = agent
 	rvo.NextAgentID++
 
 	return agent.ID, false
@@ -115,29 +115,31 @@ func (rvo *RVOSimulator) AddAgent(position *Vector2, neighborDist float64, maxNe
 	agent.Velocity = velocity
 	agent.ID = rvo.NextAgentID
 
-	rvo.Agents = append(rvo.Agents, agent)
+	rvo.Agents[rvo.NextAgentID] = agent
 	rvo.NextAgentID++
 
 	return agent.ID, false
 }
 
-// RemoveAgent : Remove agent by agentNo
-func (rvo *RVOSimulator) RemoveAgent(agentNo int) bool {
+// RemoveAgent : Remove agent by agentID
+func (rvo *RVOSimulator) RemoveAgent(agentID int) bool {
 
-	rvo.Agents = append(rvo.Agents[:agentNo], rvo.Agents[agentNo+1:]...)
+	rvo.Agents[agentID].Status = 3 // mark as to be deleted
+	// delete(rvo.Agents, agentID)
+	// rvo.Agents = append(rvo.Agents[:agentID], rvo.Agents[agentID+1:]...)
 
 	return false
 }
 
 // GetAgentNoByID : Get Agent No. by Agent ID
-func (rvo *RVOSimulator) GetAgentNoByID(id int) int {
-	for i := 0; i < rvo.GetNumAgents(); i++ {
-		if rvo.GetAgent(i).ID == id {
-			return i
-		}
-	}
-	return -1
-}
+// func (rvo *RVOSimulator) GetAgentNoByID(id int) int {
+// 	for i := 0; i < rvo.GetNumAgents(); i++ {
+// 		if rvo.GetAgent(i).ID == id {
+// 			return i
+// 		}
+// 	}
+// 	return -1
+// }
 
 // AddObstacle : Add Obstacle with vertices
 func (rvo *RVOSimulator) AddObstacle(vertices []*Vector2) (int, bool) {
@@ -206,16 +208,16 @@ func (rvo *RVOSimulator) AddObstacle(vertices []*Vector2) (int, bool) {
 func (rvo *RVOSimulator) DoStep() {
 	rvo.KdTree.BuildAgentTree()
 
-	for i := 0; i < len(rvo.Agents); i++ {
+	for _, v := range rvo.Agents {
 		// agentのneighborsを計算
-		rvo.Agents[i].ComputeNeighbors()
+		v.ComputeNeighbors()
 		// agentの速度を計算
-		rvo.Agents[i].ComputeNewVelocity()
+		v.ComputeNewVelocity()
 	}
 
-	for i := 0; i < len(rvo.Agents); i++ {
+	for _, v := range rvo.Agents {
 		// agentを更新
-		rvo.Agents[i].Update()
+		v.Update()
 	}
 
 	// globaltimeを更新
@@ -225,7 +227,7 @@ func (rvo *RVOSimulator) DoStep() {
 // IsReachedGoal :
 func (rvo *RVOSimulator) IsReachedGoal() bool {
 	/* Check if all agents have reached their goals. */
-	for i := 0; i < rvo.GetNumAgents(); i++ {
+	for i := range rvo.Agents {
 		if !rvo.IsAgentReachedGoal(i) {
 			return false
 		}
@@ -234,123 +236,129 @@ func (rvo *RVOSimulator) IsReachedGoal() bool {
 }
 
 // IsAgentReachedGoal :
-func (rvo *RVOSimulator) IsAgentReachedGoal(agentNo int) bool {
+func (rvo *RVOSimulator) IsAgentReachedGoal(agentID int) bool {
 	/* Check if agent have reached their goals. */
-	if Sqr(Sub(rvo.GetAgentGoal(agentNo), rvo.GetAgentPosition(agentNo))) > rvo.GetAgentRadius(agentNo)*rvo.GetAgentRadius(agentNo) {
+	if Sqr(Sub(rvo.GetAgentGoal(agentID), rvo.GetAgentPosition(agentID))) > rvo.GetAgentRadius(agentID)*rvo.GetAgentRadius(agentID) {
 		return false
 	}
 	return true
 }
 
 // GetAgentGoalVector :
-func (rvo *RVOSimulator) GetAgentGoalVector(agentNo int) *Vector2 {
-	return Normalize(Sub(rvo.GetAgentGoal(agentNo), rvo.GetAgentPosition(agentNo)))
+func (rvo *RVOSimulator) GetAgentGoalVector(agentID int) *Vector2 {
+	return Normalize(Sub(rvo.GetAgentGoal(agentID), rvo.GetAgentPosition(agentID)))
 }
 
 // GetAgents :
-func (rvo *RVOSimulator) GetAgents() []*Agent {
+func (rvo *RVOSimulator) GetAgents() map[int]*Agent {
 	return rvo.Agents
 }
 
 // GetAgent :
-func (rvo *RVOSimulator) GetAgent(agentNo int) *Agent {
-	return rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgent(agentID int) *Agent {
+	return rvo.Agents[agentID]
 }
 
 // GetAgentAgentNeighbor :
-func (rvo *RVOSimulator) GetAgentAgentNeighbor(agentNo int, neighborNo int) int {
-	return rvo.Agents[agentNo].AgentNeighbors[neighborNo].Agent.ID
+func (rvo *RVOSimulator) GetAgentAgentNeighbor(agentID int, neighborNo int) int {
+	return rvo.Agents[agentID].AgentNeighbors[neighborNo].Agent.ID
 }
 
 // GetAgentMaxNeighbors :
-func (rvo *RVOSimulator) GetAgentMaxNeighbors(agentNo int) int {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentMaxNeighbors(agentID int) int {
+	agent := rvo.Agents[agentID]
 	return agent.MaxNeighbors
 }
 
 // GetAgentMaxSpeed :
-func (rvo *RVOSimulator) GetAgentMaxSpeed(agentNo int) float64 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentMaxSpeed(agentID int) float64 {
+	agent := rvo.Agents[agentID]
 	return agent.MaxSpeed
 }
 
 // GetAgentNeighborDist :
-func (rvo *RVOSimulator) GetAgentNeighborDist(agentNo int) float64 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentNeighborDist(agentID int) float64 {
+	agent := rvo.Agents[agentID]
 	return agent.NeighborDist
 }
 
 // GetAgentNumAgentNeighbors :
-func (rvo *RVOSimulator) GetAgentNumAgentNeighbors(agentNo int) int {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentNumAgentNeighbors(agentID int) int {
+	agent := rvo.Agents[agentID]
 	return len(agent.AgentNeighbors)
 }
 
 // GetAgentNumObstacleNeighbors :
-func (rvo *RVOSimulator) GetAgentNumObstacleNeighbors(agentNo int) int {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentNumObstacleNeighbors(agentID int) int {
+	agent := rvo.Agents[agentID]
 	return len(agent.ObstacleNeighbors)
 }
 
 // GetAgentNumORCALines :
-func (rvo *RVOSimulator) GetAgentNumORCALines(agentNo int) int {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentNumORCALines(agentID int) int {
+	agent := rvo.Agents[agentID]
 	return len(agent.OrcaLines)
 }
 
 // GetAgentObstacleNeighbor :
-func (rvo *RVOSimulator) GetAgentObstacleNeighbor(agentNo int, neighborNo int) int {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentObstacleNeighbor(agentID int, neighborNo int) int {
+	agent := rvo.Agents[agentID]
 	obstacleNeighbor := agent.ObstacleNeighbors[neighborNo]
 	return obstacleNeighbor.Obstacle.ID
 }
 
 // GetAgentORCALine :
-func (rvo *RVOSimulator) GetAgentORCALine(agentNo int, lineNo int) *Line {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentORCALine(agentID int, lineNo int) *Line {
+	agent := rvo.Agents[agentID]
 	return agent.OrcaLines[lineNo]
 }
 
 // GetAgentPosition :
-func (rvo *RVOSimulator) GetAgentPosition(agentNo int) *Vector2 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentPosition(agentID int) *Vector2 {
+	agent := rvo.Agents[agentID]
 	return agent.Position
 }
 
 // GetAgentGoal :
-func (rvo *RVOSimulator) GetAgentGoal(agentNo int) *Vector2 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentGoal(agentID int) *Vector2 {
+	agent := rvo.Agents[agentID]
 	return agent.Goal
 }
 
 // GetAgentPrefVelocity :
-func (rvo *RVOSimulator) GetAgentPrefVelocity(agentNo int) *Vector2 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentPrefVelocity(agentID int) *Vector2 {
+	agent := rvo.Agents[agentID]
 	return agent.PrefVelocity
 }
 
 // GetAgentRadius :
-func (rvo *RVOSimulator) GetAgentRadius(agentNo int) float64 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentRadius(agentID int) float64 {
+	agent := rvo.Agents[agentID]
 	return agent.Radius
 }
 
 // GetAgentTimeHorizon :
-func (rvo *RVOSimulator) GetAgentTimeHorizon(agentNo int) float64 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentTimeHorizon(agentID int) float64 {
+	agent := rvo.Agents[agentID]
 	return agent.TimeHorizon
 }
 
 // GetAgentTimeHorizonObst :
-func (rvo *RVOSimulator) GetAgentTimeHorizonObst(agentNo int) float64 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentTimeHorizonObst(agentID int) float64 {
+	agent := rvo.Agents[agentID]
 	return agent.TimeHorizonObst
 }
 
 // GetAgentVelocity :
-func (rvo *RVOSimulator) GetAgentVelocity(agentNo int) *Vector2 {
-	agent := rvo.Agents[agentNo]
+func (rvo *RVOSimulator) GetAgentVelocity(agentID int) *Vector2 {
+	agent := rvo.Agents[agentID]
 	return agent.Velocity
+}
+
+// GetAgentStatus :
+func (rvo *RVOSimulator) GetAgentStatus(agentID int) int {
+	agent := rvo.Agents[agentID]
+	return agent.Status
 }
 
 // GetGlobalTime :
@@ -433,53 +441,58 @@ func (rvo *RVOSimulator) SetAgentDefaults(neighborDist float64, maxNeighbors int
 }
 
 // SetAgentMaxNeighbors :
-func (rvo *RVOSimulator) SetAgentMaxNeighbors(agentNo int, maxNeighbors int) {
-	rvo.Agents[agentNo].MaxNeighbors = maxNeighbors
+func (rvo *RVOSimulator) SetAgentMaxNeighbors(agentID int, maxNeighbors int) {
+	rvo.Agents[agentID].MaxNeighbors = maxNeighbors
 }
 
 // SetAgentMaxSpeed :
-func (rvo *RVOSimulator) SetAgentMaxSpeed(agentNo int, maxSpeed float64) {
-	rvo.Agents[agentNo].MaxSpeed = maxSpeed
+func (rvo *RVOSimulator) SetAgentMaxSpeed(agentID int, maxSpeed float64) {
+	rvo.Agents[agentID].MaxSpeed = maxSpeed
 }
 
 // SetAgentNeighborDist :
-func (rvo *RVOSimulator) SetAgentNeighborDist(agentNo int, neighborDist float64) {
-	rvo.Agents[agentNo].NeighborDist = neighborDist
+func (rvo *RVOSimulator) SetAgentNeighborDist(agentID int, neighborDist float64) {
+	rvo.Agents[agentID].NeighborDist = neighborDist
 }
 
 // SetAgentPosition :
-func (rvo *RVOSimulator) SetAgentPosition(agentNo int, position *Vector2) {
-	rvo.Agents[agentNo].Position = position
+func (rvo *RVOSimulator) SetAgentPosition(agentID int, position *Vector2) {
+	rvo.Agents[agentID].Position = position
 }
 
 // SetAgentGoal :
-func (rvo *RVOSimulator) SetAgentGoal(agentNo int, goal *Vector2) {
-	rvo.Agents[agentNo].Goal = goal
+func (rvo *RVOSimulator) SetAgentGoal(agentID int, goal *Vector2) {
+	rvo.Agents[agentID].Goal = goal
 }
 
 // SetAgentPrefVelocity :
-func (rvo *RVOSimulator) SetAgentPrefVelocity(agentNo int, prefVelocity *Vector2) {
-	rvo.Agents[agentNo].PrefVelocity = prefVelocity
+func (rvo *RVOSimulator) SetAgentPrefVelocity(agentID int, prefVelocity *Vector2) {
+	rvo.Agents[agentID].PrefVelocity = prefVelocity
 }
 
 // SetAgentRadius :
-func (rvo *RVOSimulator) SetAgentRadius(agentNo int, radius float64) {
-	rvo.Agents[agentNo].Radius = radius
+func (rvo *RVOSimulator) SetAgentRadius(agentID int, radius float64) {
+	rvo.Agents[agentID].Radius = radius
 }
 
 // SetAgentTimeHorizon :
-func (rvo *RVOSimulator) SetAgentTimeHorizon(agentNo int, timeHorizon float64) {
-	rvo.Agents[agentNo].TimeHorizon = timeHorizon
+func (rvo *RVOSimulator) SetAgentTimeHorizon(agentID int, timeHorizon float64) {
+	rvo.Agents[agentID].TimeHorizon = timeHorizon
 }
 
 // SetAgentTimeHorizonObst :
-func (rvo *RVOSimulator) SetAgentTimeHorizonObst(agentNo int, timeHorizonObst float64) {
-	rvo.Agents[agentNo].TimeHorizonObst = timeHorizonObst
+func (rvo *RVOSimulator) SetAgentTimeHorizonObst(agentID int, timeHorizonObst float64) {
+	rvo.Agents[agentID].TimeHorizonObst = timeHorizonObst
 }
 
 // SetAgentVelocity :
-func (rvo *RVOSimulator) SetAgentVelocity(agentNo int, velocity *Vector2) {
-	rvo.Agents[agentNo].Velocity = velocity
+func (rvo *RVOSimulator) SetAgentVelocity(agentID int, velocity *Vector2) {
+	rvo.Agents[agentID].Velocity = velocity
+}
+
+// SetAgentStatus :
+func (rvo *RVOSimulator) SetAgentStatus(agentID int, status int) {
+	rvo.Agents[agentID].Status = status
 }
 
 // SetTimeStep :

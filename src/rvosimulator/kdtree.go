@@ -73,19 +73,24 @@ func NewKdTree() *KdTree {
 
 // BuildAgentTree :
 func (kt *KdTree) BuildAgentTree() {
-	kt.Agents = nil
-	if len(kt.Agents) < len(Sim.Agents) {
-		for i := len(kt.Agents); i < len(Sim.Agents); i++ {
-
-			kt.Agents = append(kt.Agents, Sim.Agents[i])
+	// 削除マークされたものを削除
+	for i := 0; i < len(kt.Agents); i++ {
+		if kt.Agents[i].Status == 3 {
+			delete(Sim.Agents, kt.Agents[i].ID)
+			kt.Agents = append(kt.Agents[:i], kt.Agents[i+1:]...)
 		}
-		// AgentTreeを2*len(kt.Agents)-1で初期化
-		kt.AgentTree = make([]*AgentTreeNode, 2*len(kt.Agents)-1)
-		for i := 0; i < 2*len(kt.Agents)-1; i++ {
-			kt.AgentTree[i] = NewAgentTreeNode()
-
+	}
+	// 追加マークされたものを追加
+	for _, v := range Sim.Agents {
+		if v.Status == 0 {
+			kt.Agents = append(kt.Agents, v)
+			v.Status = 1
 		}
-
+	}
+	// AgentTreeを2*len(kt.Agents)-1で初期化
+	kt.AgentTree = make([]*AgentTreeNode, 2*len(kt.Agents)-1)
+	for i := 0; i < 2*len(kt.Agents)-1; i++ {
+		kt.AgentTree[i] = NewAgentTreeNode()
 	}
 
 	if len(kt.Agents) != 0 {
